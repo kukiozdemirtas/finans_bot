@@ -1,10 +1,10 @@
 const https = require("https");
+const http = require("http");
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const PORT = process.env.PORT || 3000;
 
-// ─── CLAUDE ANALİZ ───────────────────────────────────────────────
 const SYSTEM_PROMPT = `Sen Türkiye odaklı bir finansal piyasa analistisin.
 Kullanıcı sana bir haber veya gelişme yazacak.
 Bu haberin şu varlık sınıflarına olası etkisini analiz et:
@@ -12,15 +12,15 @@ USD/TRY, EUR/TRY, Altın (TRY), BIST100, Bankacılık hisseleri, Gümüş, Bitco
 
 SADECE aşağıdaki JSON formatında yanıt ver, başka hiçbir şey yazma:
 {
-  "sentiment": "POZİTİF" | "NEGATİF" | "KARMA" | "NÖTR",
+  "sentiment": "POZİTİF veya NEGATİF veya KARMA veya NÖTR",
   "summary": "2-3 cümle genel yorum (Türkçe)",
   "impacts": [
-    { "asset": "USD/TRY", "direction": "UP" | "DOWN" | "NEUTRAL", "reason": "kısa mekanizma (1 cümle)" }
+    { "asset": "USD/TRY", "direction": "UP veya DOWN veya NEUTRAL", "reason": "kısa mekanizma (1 cümle)" }
   ],
   "causation_note": "Korelasyon mu nedensellik mi? (1-2 cümle)"
 }
 
-Her varlık için impact yaz. NEUTRAL kullanmaktan çekinme. Mekanizmayı açıkla, fiyat tahmini yapma.`;
+Her varlık için impact yaz. NEUTRAL kullanmaktan çekinme.`;
 
 async function analyzeWithClaude(newsText) {
   return new Promise((resolve, reject) => {
@@ -48,59 +48,58 @@ async function analyzeWithClaude(newsText) {
       res.on("data", (chunk) => (data += chunk));
       res.on("end", () => {
         try {
+          console.log("Claude raw response:", data.substring(0, 200));
           const parsed = JSON.parse(data);
+          if (parsed.error) {
+            reject(new Error("Claude API hatası: " + parsed.error.message));
+            return;
+          }
           const text = parsed.content?.[0]?.text || "";
           const result = JSON.parse(text.replace(/```json|```/g, "").trim());
           resolve(result);
         } catch (e) {
-          reject(new Error("Claude yanıtı ayrıştırılamadı"));
+          console.error("Parse hatası:", e.message, "Data:", data.substring(0, 300));
+          reject(new Error("Yanıt ayrıştırılamadı: " + e.message));
         }
       });
     });
 
-    req.on("error", reject);
+    req.on("error", (e) => {
+      console.error("Claude request hatası:", e.message);
+      reject(e);
+    });
     req.write(body);
     req.end();
   });
 }
 
-// ─── MESAJ FORMATLAMA ─────────────────────────────────────────────
 function formatAnalysis(news, result) {
   const sentimentEmoji = {
-    "POZİTİF": "📈",
-    "NEGATİF": "📉",
-    "KARMA": "↔️",
-    "NÖTR": "➡️",
+    "POZİTİF": "📈", "NEGATİF": "📉", "KARMA": "↔️", "NÖTR": "➡️"
   }[result.sentiment] || "📊";
 
   const dirEmoji = { UP: "↑", DOWN: "↓", NEUTRAL: "→" };
   const dirLabel = { UP: "YÜKSELİŞ", DOWN: "DÜŞÜŞ", NEUTRAL: "NÖTR" };
 
-  let msg = `${sentimentEmoji} *${result.sentiment}*\n`;
-  msg += `📰 _${escapeMarkdown(news)}_\n\n`;
-  msg += `*Genel Yorum*\n${escapeMarkdown(result.summary)}\n\n`;
-  msg += `*Varlık Etkileri*\n`;
+  let msg = `${sentimentEmoji} ${result.sentiment}\n`;
+  msg += `📰 "${news}"\n\n`;
+  msg += `GENEL YORUM\n${result.summary}\n\n`;
+  msg += `VARLIK ETKİLERİ\n`;
 
   for (const imp of result.impacts || []) {
     const e = dirEmoji[imp.direction] || "→";
     const l = dirLabel[imp.direction] || "NÖTR";
-    msg += `${e} *${imp.asset}* — ${l}\n`;
-    msg += `  _${escapeMarkdown(imp.reason)}_\n`;
+    msg += `${e} ${imp.asset} — ${l}\n`;
+    msg += `   ${imp.reason}\n`;
   }
 
-  msg += `\n*Korelasyon Notu*\n⚠️ _${escapeMarkdown(result.causation_note)}_\n\n`;
-  msg += `─────────────────\n`;
-  msg += `_⚠️ Bilgi amaçlıdır, yatırım tavsiyesi değildir._`;
+  msg += `\nKORELASYON NOTU\n⚠️ ${result.causation_note}\n\n`;
+  msg += `──────────────────\n`;
+  msg += `⚠️ Bilgi amaçlıdır, yatırım tavsiyesi değildir.`;
 
   return msg;
 }
 
-function escapeMarkdown(text) {
-  if (!text) return "";
-  return text.replace(/[_*[\]()~`>#+\-=|{}.!]/g, "\\$&");
-}
-
-// ─── TELEGRAM API ─────────────────────────────────────────────────
 function telegramRequest(method, data) {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify(data);
@@ -117,19 +116,27 @@ function telegramRequest(method, data) {
     const req = https.request(options, (res) => {
       let d = "";
       res.on("data", (c) => (d += c));
-      res.on("end", () => resolve(JSON.parse(d)));
+      res.on("end", () => {
+        const result = JSON.parse(d);
+        if (!result.ok) {
+          console.error("Telegram API hatası:", JSON.stringify(result));
+        }
+        resolve(result);
+      });
     });
-    req.on("error", reject);
+    req.on("error", (e) => {
+      console.error("Telegram request hatası:", e.message);
+      reject(e);
+    });
     req.write(body);
     req.end();
   });
 }
 
-async function sendMessage(chatId, text, parseMode = "MarkdownV2") {
+async function sendMessage(chatId, text) {
   return telegramRequest("sendMessage", {
     chat_id: chatId,
-    text,
-    parse_mode: parseMode,
+    text: text,
   });
 }
 
@@ -140,57 +147,39 @@ async function sendTyping(chatId) {
   });
 }
 
-// ─── MESAJ İŞLEME ────────────────────────────────────────────────
 async function handleMessage(message) {
   const chatId = message.chat.id;
   const text = message.text?.trim();
-
   if (!text) return;
 
-  // Komutlar
+  console.log(`Mesaj geldi [${chatId}]: ${text.substring(0, 50)}`);
+
   if (text === "/start") {
-    await sendMessage(
-      chatId,
-      `📊 *Finans Analiz Botu*\n\nMerhaba\\! Bir haber veya piyasa gelişmesi yazın, hangi varlıkları nasıl etkileyebileceğini analiz edeyim\\.\n\n*Örnek:*\n_TCMB faizi 250 baz puan artırdı_\n_Fed toplantısında faiz sabit kaldı_\n_Enflasyon beklentinin altında geldi_\n\nYazın, analiz edeyim\\! 🚀`,
-      "MarkdownV2"
+    await sendMessage(chatId,
+      `📊 Finans Analiz Botu\n\nMerhaba! Bir haber veya piyasa gelişmesi yazın, hangi varlıkları nasıl etkileyebileceğini analiz edeyim.\n\nÖrnek:\nTCMB faizi 250 baz puan artırdı\nFed toplantısında faiz sabit kaldı\n\nYazın, analiz edeyim! 🚀`
     );
     return;
   }
 
-  if (text === "/yardim" || text === "/help") {
-    await sendMessage(
-      chatId,
-      `ℹ️ *Nasıl Kullanılır*\n\nHerhangi bir finansal haber veya gelişmeyi direkt yazın\\.\n\nBot şu varlıkları analiz eder:\n• USD/TRY · EUR/TRY\n• Altın · Gümüş\n• BIST100 · Bankacılık\n• Bitcoin · Brent Petrol\n\nHer analiz için etki yönü ve mekanizma açıklaması alırsınız\\.`,
-      "MarkdownV2"
-    );
-    return;
-  }
-
-  // Kısa mesajlar
   if (text.length < 10) {
-    await sendMessage(chatId, `Lütfen analiz etmemi istediğiniz haberi biraz daha detaylı yazın\\.`, "MarkdownV2");
+    await sendMessage(chatId, "Lütfen haberi biraz daha detaylı yazın.");
     return;
   }
 
-  // Analiz
   await sendTyping(chatId);
 
   try {
+    console.log("Claude analizi başlıyor...");
     const result = await analyzeWithClaude(text);
+    console.log("Claude analizi tamamlandı, mesaj gönderiliyor...");
     const formatted = formatAnalysis(text, result);
     await sendMessage(chatId, formatted);
+    console.log("Mesaj gönderildi.");
   } catch (err) {
-    console.error("Analiz hatası:", err.message);
-    await sendMessage(
-      chatId,
-      `❌ Analiz sırasında bir hata oluştu\\. Lütfen tekrar deneyin\\.`,
-      "MarkdownV2"
-    );
+    console.error("Hata:", err.message);
+    await sendMessage(chatId, `Analiz sırasında hata oluştu: ${err.message}`);
   }
 }
-
-// ─── WEBHOOK SERVER ───────────────────────────────────────────────
-const http = require("http");
 
 const server = http.createServer((req, res) => {
   if (req.method === "POST" && req.url === "/webhook") {
@@ -199,18 +188,19 @@ const server = http.createServer((req, res) => {
     req.on("end", async () => {
       try {
         const update = JSON.parse(body);
+        console.log("Webhook update:", JSON.stringify(update).substring(0, 100));
         if (update.message) {
           await handleMessage(update.message);
         }
       } catch (e) {
-        console.error("Webhook hatası:", e.message);
+        console.error("Webhook parse hatası:", e.message);
       }
       res.writeHead(200);
       res.end("OK");
     });
   } else {
     res.writeHead(200);
-    res.end("Finans Bot çalışıyor ✓");
+    res.end("Finans Bot çalışıyor");
   }
 });
 
