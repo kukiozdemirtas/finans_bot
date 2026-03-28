@@ -5,22 +5,40 @@ const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const PORT = process.env.PORT || 3000;
 
-const SYSTEM_PROMPT = `Sen Türkiye odaklı bir finansal piyasa analistisin.
-Kullanıcı sana bir haber veya gelişme yazacak.
-Bu haberin şu varlık sınıflarına olası etkisini analiz et:
+const SYSTEM_PROMPT = `Sen Türkiye odaklı deneyimli bir finansal piyasa analistisin.
+Kullanıcı sana bir haber veya piyasa gelişmesi yazacak.
+Bu haberin şu varlık sınıflarına etkisini derinlemesine analiz et:
 USD/TRY, EUR/TRY, Altın (TRY), BIST100, Bankacılık hisseleri, Gümüş, Bitcoin, Brent Petrol
+
+ÖNEMLİ KURALLAR:
+- Haberde neden belirtilmemişse, varsayımını açıkça "Varsayım:" diye işaretle
+- Sürpriz mi yoksa beklenen bir gelişme mi olduğunu mutlaka belirt
+- Her etkiyi kısa vade (saatler-günler) ve orta vade (haftalar) olarak ayır
+- Etki şiddetini belirt: güçlü / orta / zayıf
+- Zincirleme etkileri göster (örn. altın düşüyorsa gümüş, madencilik hisseleri)
 
 SADECE aşağıdaki JSON formatında yanıt ver, başka hiçbir şey yazma:
 {
   "sentiment": "POZİTİF veya NEGATİF veya KARMA veya NÖTR",
-  "summary": "2-3 cümle genel yorum (Türkçe)",
+  "surprise_factor": "SÜRPRIZ veya BEKLENİYORDU veya BELİRSİZ",
+  "summary": "Haberin özeti, neden önemli olduğu ve piyasanın önceki beklentisiyle farkı (2-3 cümle)",
   "impacts": [
-    { "asset": "USD/TRY", "direction": "UP veya DOWN veya NEUTRAL", "reason": "kısa mekanizma (1 cümle)" }
+    {
+      "asset": "USD/TRY",
+      "direction": "UP veya DOWN veya NEUTRAL",
+      "strength": "GÜÇLÜ veya ORTA veya ZAYIF",
+      "short_term": "Saatler-günler içinde beklenen hareket ve nedeni (1 cümle)",
+      "mid_term": "Haftalar içinde beklenen seyir (1 cümle)",
+      "until_when": "Bu etki ne zamana kadar sürer, hangi gelişme yönü değiştirir (1 cümle)",
+      "investor_behavior": "Bu haberde yatırımcıların büyük ihtimalle ne yapacağı: alır / satar / bekler / pozisyon azaltır (1-2 cümle)",
+      "correlated_assets": "Bu varlıktan etkilenecek diğer assetler (varsa, 1 cümle)"
+    }
   ],
-  "causation_note": "Korelasyon mu nedensellik mi? (1-2 cümle)"
+  "chain_effects": "Zincirleme etki özeti — bir varlıktaki hareketin diğerlerine nasıl yansıyacağı (2-3 cümle)",
+  "causation_note": "Bu ilişki gerçek nedensellik mi korelasyon mu, sınırları neler (1-2 cümle)"
 }
 
-Her varlık için impact yaz. NEUTRAL kullanmaktan çekinme.`;
+Her varlık için impact yaz. NEUTRAL kullanmaktan çekinme. Spekülatif fiyat tahmini yapma, mekanizmayı açıkla.`;
 
 async function analyzeWithClaude(newsText) {
   return new Promise((resolve, reject) => {
@@ -78,23 +96,40 @@ function formatAnalysis(news, result) {
     "POZİTİF": "📈", "NEGATİF": "📉", "KARMA": "↔️", "NÖTR": "➡️"
   }[result.sentiment] || "📊";
 
+  const surpriseEmoji = {
+    "SÜRPRIZ": "⚡", "BEKLENİYORDU": "📌", "BELİRSİZ": "❓"
+  }[result.surprise_factor] || "❓";
+
   const dirEmoji = { UP: "↑", DOWN: "↓", NEUTRAL: "→" };
   const dirLabel = { UP: "YÜKSELİŞ", DOWN: "DÜŞÜŞ", NEUTRAL: "NÖTR" };
+  const strengthLabel = { "GÜÇLÜ": "●●●", "ORTA": "●●○", "ZAYIF": "●○○" };
 
-  let msg = `${sentimentEmoji} ${result.sentiment}\n`;
+  let msg = `${sentimentEmoji} ${result.sentiment}  ${surpriseEmoji} ${result.surprise_factor}\n`;
   msg += `📰 "${news}"\n\n`;
   msg += `GENEL YORUM\n${result.summary}\n\n`;
-  msg += `VARLIK ETKİLERİ\n`;
+  msg += `━━━━━━━━━━━━━━━━━━\n`;
+  msg += `VARLIK ETKİLERİ\n\n`;
 
   for (const imp of result.impacts || []) {
     const e = dirEmoji[imp.direction] || "→";
     const l = dirLabel[imp.direction] || "NÖTR";
-    msg += `${e} ${imp.asset} — ${l}\n`;
-    msg += `   ${imp.reason}\n`;
+    const s = strengthLabel[imp.strength] || "●○○";
+    msg += `${e} ${imp.asset} — ${l} ${s}\n`;
+    if (imp.short_term) msg += `  Kısa: ${imp.short_term}\n`;
+    if (imp.mid_term)   msg += `  Orta: ${imp.mid_term}\n`;
+    if (imp.until_when) msg += `  Ne zamana kadar: ${imp.until_when}\n`;
+    if (imp.investor_behavior) msg += `  Yatırımcı: ${imp.investor_behavior}\n`;
+    if (imp.correlated_assets) msg += `  Korele: ${imp.correlated_assets}\n`;
+    msg += `\n`;
   }
 
-  msg += `\nKORELASYON NOTU\n⚠️ ${result.causation_note}\n\n`;
-  msg += `──────────────────\n`;
+  if (result.chain_effects) {
+    msg += `━━━━━━━━━━━━━━━━━━\n`;
+    msg += `ZİNCİRLEME ETKİ\n${result.chain_effects}\n\n`;
+  }
+
+  msg += `━━━━━━━━━━━━━━━━━━\n`;
+  msg += `KORELASYON NOTU\n⚠️ ${result.causation_note}\n\n`;
   msg += `⚠️ Bilgi amaçlıdır, yatırım tavsiyesi değildir.`;
 
   return msg;
