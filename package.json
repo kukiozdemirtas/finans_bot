@@ -1,0 +1,12 @@
+{
+  "name": "finans-analiz-bot",
+  "version": "1.0.0",
+  "description": "Türkiye odaklı finansal haber analiz botu",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
