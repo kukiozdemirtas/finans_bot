@@ -175,6 +175,28 @@ function telegramRequest(method, data) {
   });
 }
 
+async function sendLongMessage(chatId, text) {
+  const MAX = 4000;
+  if (text.length <= MAX) {
+    return telegramRequest("sendMessage", { chat_id: chatId, text: text });
+  }
+  const parts = [];
+  let remaining = text;
+  while (remaining.length > 0) {
+    if (remaining.length <= MAX) {
+      parts.push(remaining);
+      break;
+    }
+    let splitAt = remaining.lastIndexOf("\n", MAX);
+    if (splitAt === -1) splitAt = MAX;
+    parts.push(remaining.substring(0, splitAt));
+    remaining = remaining.substring(splitAt).trim();
+  }
+  for (const part of parts) {
+    await telegramRequest("sendMessage", { chat_id: chatId, text: part });
+  }
+}
+
 async function sendMessage(chatId, text) {
   return telegramRequest("sendMessage", { chat_id: chatId, text: text });
 }
@@ -209,7 +231,7 @@ async function handleMessage(message) {
     const result = await analyzeWithClaude(text);
     console.log("Analiz tamamlandı, gönderiliyor...");
     const formatted = formatAnalysis(text, result);
-    await sendMessage(chatId, formatted);
+    await sendLongMessage(chatId, formatted);
     console.log("Mesaj gönderildi.");
   } catch (err) {
     console.error("Hata:", err.message);
