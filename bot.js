@@ -5,15 +5,21 @@ const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const PORT = process.env.PORT || 3000;
 
-const SYSTEM_PROMPT = `Türkiye odaklı finansal piyasa analistisin. Haber gelince şu 8 varlığı analiz et: USD/TRY, EUR/TRY, Altın(TRY), BIST100, Bankacılık, Gümüş, Bitcoin, Brent.
+const SYSTEM_PROMPT = `Türkiye odaklı finansal piyasa analistisin. Kullanıcı bir haber veya gelişme yazar. Önce web'de ara, güncel bağlamı bul, sonra şu 8 varlığı analiz et: USD/TRY, EUR/TRY, Altın(TRY), BIST100, Bankacılık, Gümüş, Bitcoin, Brent.
 
-Kurallar: Neden bilinmiyorsa "Varsayım:" ekle. Sürpriz mi beklenen mi belirt. Spekülatif fiyat verme.
+Kurallar:
+- Web'de bulduğun güncel bilgiyi kullan, eğitim verisine değil gerçek haberlere dayan
+- Bir varlıktaki hareket diğerini mekanik olarak etkilemiyorsa NEUTRAL kullan
+- Korelasyon kalıplarını nedensellik olarak sunma
+- Haberin doğrudan etkisiyle ikincil/varsayımsal etkileri ayır, varsayımsa "Varsayım:" yaz
+- Sürpriz mi beklenen mi belirt
+- Spekülatif fiyat tahmini yapma
 
 SADECE JSON döndür, başka hiçbir şey yazma:
 {
   "sentiment": "POZİTİF|NEGATİF|KARMA|NÖTR",
   "surprise": "SÜRPRIZ|BEKLENİYORDU|BELİRSİZ",
-  "summary": "özet ve piyasa beklentisiyle farkı (2 cümle)",
+  "summary": "güncel bağlamla özet ve piyasa beklentisiyle farkı (2 cümle)",
   "impacts": [
     {
       "asset": "USD/TRY",
@@ -31,7 +37,19 @@ async function analyzeWithClaude(newsText) {
     const body = JSON.stringify({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 3000,
-      system: SYSTEM_PROMPT,
+      system: [
+        {
+          type: "text",
+          text: SYSTEM_PROMPT,
+          cache_control: { type: "ephemeral" }
+        }
+      ],
+      tools: [
+        {
+          type: "web_search_20250305",
+          name: "web_search"
+        }
+      ],
       messages: [{ role: "user", content: newsText }],
     });
 
@@ -43,6 +61,7 @@ async function analyzeWithClaude(newsText) {
         "Content-Type": "application/json",
         "x-api-key": CLAUDE_API_KEY,
         "anthropic-version": "2023-06-01",
+        "anthropic-beta": "prompt-caching-2024-07-31",
         "Content-Length": Buffer.byteLength(body),
       },
     };
@@ -52,17 +71,22 @@ async function analyzeWithClaude(newsText) {
       res.on("data", (chunk) => (data += chunk));
       res.on("end", () => {
         try {
-          console.log("Claude raw response:", data.substring(0, 300));
+          console.log("Claude raw response:", data.substring(0, 400));
           const parsed = JSON.parse(data);
           if (parsed.error) {
             reject(new Error("Claude API hatası: " + parsed.error.message));
             return;
           }
-          const text = parsed.content?.[0]?.text || "";
-          const result = JSON.parse(text.replace(/```json|```/g, "").trim());
+          // Cache kullanım bilgisini logla
+          const usage = parsed.usage || {};
+          console.log(`Cache: write=${usage.cache_creation_input_tokens||0}, read=${usage.cache_read_input_tokens||0}`);
+
+          const textBlocks = (parsed.content || []).filter(b => b.type === "text");
+          const lastText = textBlocks[textBlocks.length - 1]?.text || "";
+          const result = JSON.parse(lastText.replace(/```json|```/g, "").trim());
           resolve(result);
         } catch (e) {
-          console.error("Parse hatası:", e.message, "Data:", data.substring(0, 500));
+          console.error("Parse hatası:", e.message, "Data:", data.substring(0, 600));
           reject(new Error("Yanıt ayrıştırılamadı: " + e.message));
         }
       });
@@ -112,6 +136,7 @@ function formatAnalysis(news, result) {
 
   msg += `━━━━━━━━━━━━━━━━━━\n`;
   msg += `KORELASYON NOTU\n⚠️ ${result.causation}\n\n`;
+  msg += `🌐 Güncel web verisiyle analiz edildi.\n`;
   msg += `⚠️ Bilgi amaçlıdır, yatırım tavsiyesi değildir.`;
 
   return msg;
@@ -167,12 +192,12 @@ async function handleMessage(message) {
 
   if (text === "/start") {
     await sendMessage(chatId,
-      `📊 Finans Analiz Botu\n\nMerhaba! Bir haber yazın, 8 varlık sınıfı için analiz edeyim.\n\nÖrnek:\nTCMB faizi 250 baz puan artırdı\nFed faiz kararında şahin ton kullandı\nEnflasyon beklentinin altında geldi`
+      `📊 Finans Analiz Botu\n\nMerhaba! Bir haber yazın, güncel web verisiyle 8 varlık için analiz edeyim.\n\nÖrnek:\nBTC değer kaybediyor\nTCMB faizi 250 baz puan artırdı\nFed şahin ton kullandı`
     );
     return;
   }
 
-  if (text.length < 10) {
+  if (text.length < 5) {
     await sendMessage(chatId, "Lütfen haberi biraz daha detaylı yazın.");
     return;
   }
@@ -180,7 +205,7 @@ async function handleMessage(message) {
   await sendTyping(chatId);
 
   try {
-    console.log("Claude analizi başlıyor...");
+    console.log("Claude analizi başlıyor (web search + cache aktif)...");
     const result = await analyzeWithClaude(text);
     console.log("Analiz tamamlandı, gönderiliyor...");
     const formatted = formatAnalysis(text, result);
