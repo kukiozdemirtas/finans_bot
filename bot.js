@@ -82,8 +82,14 @@ async function analyzeWithClaude(newsText) {
           console.log(`Cache: write=${usage.cache_creation_input_tokens||0}, read=${usage.cache_read_input_tokens||0}`);
 
           const textBlocks = (parsed.content || []).filter(b => b.type === "text");
-          const lastText = textBlocks[textBlocks.length - 1]?.text || "";
-          const result = JSON.parse(lastText.replace(/```json|```/g, "").trim());
+          let result = null;
+          for (let i = textBlocks.length - 1; i >= 0; i--) {
+            const cleaned = textBlocks[i].text.replace(/```json|```/g, "").trim();
+            if (cleaned.startsWith("{")) {
+              try { result = JSON.parse(cleaned); break; } catch(e) { continue; }
+            }
+          }
+          if (!result) throw new Error("JSON blogu bulunamadi");
           resolve(result);
         } catch (e) {
           console.error("Parse hatası:", e.message, "Data:", data.substring(0, 600));
