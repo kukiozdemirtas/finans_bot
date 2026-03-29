@@ -4,6 +4,8 @@ const http = require("http");
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CHAT_ID = process.env.CHAT_ID || "1551586121";
+const CHAT_ID_2 = process.env.CHAT_ID_2 || "8587386856";
+const ALL_CHATS = [CHAT_ID, CHAT_ID_2];
 const PORT = process.env.PORT || 3000;
 
 // ─── PROMPTS ──────────────────────────────────────────────────────
@@ -134,9 +136,9 @@ async function sendBriefing(type) {
   const label = { morning:"☀️ SABAH", opening:"⚡ AÇILIŞ", wallst:"🌆 WALL STREET", closing:"🌙 KAPANIŞ" }[type];
   console.log(`${label} brifing gönderiliyor...`);
   try {
-    await sendMessage(CHAT_ID, `${label} BRİFİNG hazırlanıyor... 🔍`);
+    for (const cid of ALL_CHATS) await sendMessage(cid, `${label} BRİFİNG hazırlanıyor... 🔍`);
     const text = await callClaude(BRIEFING_SYSTEM, context, true);
-    await sendLongMessage(CHAT_ID, `${label} BRİFİNG\n${new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}\n\n${text}`);
+    for (const cid of ALL_CHATS) await sendLongMessage(cid, `${label} BRİFİNG\n${new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}\n\n${text}`);
     console.log(`${label} brifing gönderildi.`);
   } catch (err) {
     console.error(`${label} brifing hatası:`, err.message);
@@ -302,9 +304,9 @@ function isWeekend() {
 async function sendWeekendBriefing() {
   console.log('Hafta sonu brifing gönderiliyor...');
   try {
-    await sendMessage(CHAT_ID, 'HAFTA SONU BRİFİNG hazırlanıyor...');
+    for (const cid of ALL_CHATS) await sendMessage(cid, 'HAFTA SONU BRİFİNG hazırlanıyor...');
     const text = await callClaude(WEEKEND_SYSTEM, 'Hafta sonu piyasa özeti: kripto, emtia ve pazartesi açılışına hazırlık.', true);
-    const timeStr = new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}); await sendLongMessage(CHAT_ID, 'HAFTA SONU BRİFİNG ' + timeStr + ' ' + text);
+    const timeStr = new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}); for (const cid of ALL_CHATS) await sendLongMessage(cid, 'HAFTA SONU BRİFİNG ' + timeStr + ' ' + text);
   } catch (err) {
     console.error('Hafta sonu brifing hatası:', err.message);
   }
