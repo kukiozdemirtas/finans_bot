@@ -353,9 +353,58 @@ function scheduleBriefings() {
   console.log("Zamanlayıcı aktif: 07:30 / 10:30 / 16:00 / 19:30 TR saati");
 }
 
+
+// PORTFOLIO ENDPOINT
+const PORTFOLIO_SYSTEM = `Sen bir portföy simülasyonunda yatırım kararları alan yapay zekasın. Başlangıç: 1.000.000 TL. Tamamen simülasyon.
+Güncel küresel piyasa koşullarını web'den araştır. Sonra 1.000.000 TL'yi dağıt:
+Altın, Gümüş, USD/TRY, BIST100, Bitcoin, Ethereum, Brent Petrol, Fon, S&P 500, Nasdaq, DXY, ABD Tahvil, Para Piyasası Fonu, TL Mevduat, Nakit
+SADECE JSON döndür: {"reasoning":"2 cümle Türkçe gerekçe","macro_context":"DXY seviyesi ve risk rejimi","positions":[{"asset":"Altın","allocation_pct":35}]}
+Toplam allocation_pct tam 100 olmalı.`;
+
+let portfolioCache = null;
+let portfolioCacheTime = 0;
+const PORTFOLIO_CACHE_MS = 15 * 60 * 1000;
+
+async function getPortfolioDecision() {
+  const now = Date.now();
+  if (portfolioCache && (now - portfolioCacheTime) < PORTFOLIO_CACHE_MS) {
+    console.log('Portfolio cache hit');
+    return portfolioCache;
+  }
+  const raw = await callClaude(PORTFOLIO_SYSTEM, 'Güncel piyasalara göre portföy dağılımı belirle.', true);
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('JSON bulunamadı');
+  const result = JSON.parse(match[0]);
+  portfolioCache = result;
+  portfolioCacheTime = now;
+  console.log('Portfolio kararı alındı:', result.reasoning);
+  return result;
+}
+
 // ─── WEBHOOK SERVER ───────────────────────────────────────────────
 
 const server = http.createServer((req, res) => {
+  // CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+
+  // Portfolio API
+  if (req.method === 'GET' && req.url === '/portfolio') {
+    getPortfolioDecision()
+      .then(result => {
+        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({ok: true, ...result}));
+      })
+      .catch(err => {
+        res.writeHead(500, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({ok: false, error: err.message}));
+      });
+    return;
+  }
+
+  // Telegram webhook
   if (req.method === "POST" && req.url === "/webhook") {
     let body = "";
     req.on("data", chunk => body += chunk);
@@ -366,9 +415,10 @@ const server = http.createServer((req, res) => {
       } catch (e) { console.error("Webhook hatası:", e.message); }
       res.writeHead(200); res.end("OK");
     });
-  } else {
-    res.writeHead(200); res.end("Finans Bot çalışıyor");
+    return;
   }
+
+  res.writeHead(200); res.end("Finans Bot çalışıyor");
 });
 
 server.listen(PORT, () => {
