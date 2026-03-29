@@ -286,7 +286,7 @@ async function handleMessage(message) {
   if (text === "/portfoy") {
     await sendTyping(chatId);
     try {
-      await sendMessage(chatId, "📊 Portföy kararı hazırlanıyor... 🔍");
+      await sendMessage(chatId, "📊 Portföy kararı getiriliyor...");
       const result = await getPortfolioDecision();
       await sendLongMessage(chatId, formatPortfolioMessage(result));
     } catch(err) {
@@ -384,7 +384,7 @@ Toplam allocation_pct tam 100 olmalı. Sadece pozisyon aldığın varlıkları y
 
 let portfolioCache = null;
 let portfolioCacheTime = 0;
-const PORTFOLIO_CACHE_MS = 15 * 60 * 1000;
+const PORTFOLIO_CACHE_MS = 24 * 60 * 60 * 1000; // 24 saat
 
 async function getPortfolioDecision() {
   const now = Date.now();
