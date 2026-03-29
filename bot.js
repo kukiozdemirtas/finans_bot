@@ -6,6 +6,22 @@ const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CHAT_ID = process.env.CHAT_ID || "1551586121";
 const CHAT_ID_2 = process.env.CHAT_ID_2 || "8587386856";
 const ALL_CHATS = [CHAT_ID, CHAT_ID_2];
+
+// ─── CACHE ────────────────────────────────────────────────────────
+const briefingCache = {};
+function getCacheKey(type) { return new Date().toDateString() + '_' + type; }
+function getFromCache(type) {
+  const entry = briefingCache[getCacheKey(type)];
+  if (!entry) return null;
+  const h = new Date().getHours();
+  const expiry = { morning:10, opening:16, wallst:19, closing:24, weekend:24 };
+  return h < (expiry[type] || 24) ? entry : null;
+}
+function saveToCache(type, text) {
+  briefingCache[getCacheKey(type)] = text;
+  console.log('Cache kaydedildi:', type);
+}
+
 const PORT = process.env.PORT || 3000;
 
 // ─── PROMPTS ──────────────────────────────────────────────────────
