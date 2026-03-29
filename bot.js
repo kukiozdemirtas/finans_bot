@@ -15,7 +15,7 @@ Kurallar:
 - Sürpriz mi beklenen mi belirt
 - Spekülatif fiyat tahmini yapma
 
-SADECE JSON döndür, başka hiçbir şey yazma:
+Web araması yaptıktan SONRA SADECE JSON döndür. Hiçbir açıklama, giriş veya kapanış yazma. Direkt { ile başla:
 {
   "sentiment": "POZİTİF|NEGATİF|KARMA|NÖTR",
   "surprise": "SÜRPRIZ|BEKLENİYORDU|BELİRSİZ",
@@ -84,9 +84,10 @@ async function analyzeWithClaude(newsText) {
           const textBlocks = (parsed.content || []).filter(b => b.type === "text");
           let result = null;
           for (let i = textBlocks.length - 1; i >= 0; i--) {
-            const cleaned = textBlocks[i].text.replace(/```json|```/g, "").trim();
-            if (cleaned.startsWith("{")) {
-              try { result = JSON.parse(cleaned); break; } catch(e) { continue; }
+            const raw = textBlocks[i].text;
+            const match = raw.match(/\{[\s\S]*\}/);
+            if (match) {
+              try { result = JSON.parse(match[0]); break; } catch(e) { continue; }
             }
           }
           if (!result) throw new Error("JSON blogu bulunamadi");
