@@ -264,7 +264,7 @@ async function handleMessage(message) {
 
   if (text === "/start") {
     await sendMessage(chatId,
-      `📊 Finans Analiz Botu\n\nKomutlar:\n/kuki — Güncel piyasa brifing\n\nYa da direkt haber yazın:\nTCMB faizi artırdı\nFed şahin ton kullandı\nAltında düşüş devam ediyor`
+      `📊 Finans Analiz Botu\n\nKomutlar:\n/kuki — Güncel piyasa brifing\n/portfoy — Claude portföy kararı ve gerekçesi\n\nYa da direkt haber yazın:\nTCMB faizi artırdı\nFed şahin ton kullandı\nAltında düşüş devam ediyor`
     );
     return;
   }
@@ -279,6 +279,18 @@ async function handleMessage(message) {
       else if (h >= 9  && h < 13) type = "opening";
       else if (h >= 13 && h < 18) type = "wallst";
       await sendBriefing(type);
+    }
+    return;
+  }
+
+  if (text === "/portfoy") {
+    await sendTyping(chatId);
+    try {
+      await sendMessage(chatId, "📊 Portföy kararı hazırlanıyor... 🔍");
+      const result = await getPortfolioDecision();
+      await sendLongMessage(chatId, formatPortfolioMessage(result));
+    } catch(err) {
+      await sendMessage(chatId, "Portföy hatası: " + err.message);
     }
     return;
   }
@@ -358,8 +370,17 @@ function scheduleBriefings() {
 const PORTFOLIO_SYSTEM = `Sen bir portföy simülasyonunda yatırım kararları alan yapay zekasın. Başlangıç: 1.000.000 TL. Tamamen simülasyon.
 Güncel küresel piyasa koşullarını web'den araştır. Sonra 1.000.000 TL'yi dağıt:
 Altın, Gümüş, USD/TRY, BIST100, Bitcoin, Ethereum, Brent Petrol, Fon, S&P 500, Nasdaq, DXY, ABD Tahvil, Para Piyasası Fonu, TL Mevduat, Nakit
-SADECE JSON döndür: {"reasoning":"2 cümle Türkçe gerekçe","macro_context":"DXY seviyesi ve risk rejimi","positions":[{"asset":"Altın","allocation_pct":35}]}
-Toplam allocation_pct tam 100 olmalı.`;
+
+SADECE JSON döndür:
+{
+  "macro_context": "DXY seviyesi, risk rejimi, öne çıkan tema (1-2 cümle)",
+  "reasoning": "Genel strateji ve neden bu dağılımı seçtiğini açıkla (2 cümle)",
+  "key_risk": "En büyük risk: bu kararı tersine çevirecek gelişme nedir (1 cümle)",
+  "positions": [
+    { "asset": "Altın", "allocation_pct": 35, "reason": "Neden bu yüzde, mekanizma (1 cümle)" }
+  ]
+}
+Toplam allocation_pct tam 100 olmalı. Sadece pozisyon aldığın varlıkları yaz, 0% olanları atlayabilirsin.`;
 
 let portfolioCache = null;
 let portfolioCacheTime = 0;
@@ -379,6 +400,33 @@ async function getPortfolioDecision() {
   portfolioCacheTime = now;
   console.log('Portfolio kararı alındı:', result.reasoning);
   return result;
+}
+
+function formatPortfolioMessage(result) {
+  const timeStr = new Date().toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
+  let msg = '📊 CLAUDE PORTFÖY KARARI ' + timeStr + '\n';
+  msg += '━━━━━━━━━━━━━━━━━━\n';
+  msg += '🌐 MAKRO\n' + (result.macro_context || '') + '\n\n';
+  msg += '💡 STRATEJİ\n' + (result.reasoning || '') + '\n\n';
+  msg += '━━━━━━━━━━━━━━━━━━\n';
+  msg += 'POZİSYONLAR\n\n';
+
+  const sorted = [...(result.positions || [])].sort((a,b) => b.allocation_pct - a.allocation_pct);
+  for (const pos of sorted) {
+    const bar = '█'.repeat(Math.round(pos.allocation_pct / 5)) + '░'.repeat(20 - Math.round(pos.allocation_pct / 5));
+    msg += pos.asset + ' — %' + pos.allocation_pct + '\n';
+    msg += bar.substring(0, 20) + '\n';
+    if (pos.reason) msg += '   ' + pos.reason + '\n';
+    msg += '\n';
+  }
+
+  if (result.key_risk) {
+    msg += '━━━━━━━━━━━━━━━━━━\n';
+    msg += '⚠️ ANA RİSK\n' + result.key_risk + '\n\n';
+  }
+
+  msg += '⚠️ Simülasyon amaçlıdır, yatırım tavsiyesi değildir.';
+  return msg;
 }
 
 // ─── WEBHOOK SERVER ───────────────────────────────────────────────
