@@ -313,7 +313,7 @@ Cite tag, kaynak tag veya HTML kullanma.
 Sonuna ekle: Bilgi amaçlıdır, yatırım tavsiyesi değildir.`;
 
 function isWeekend() {
-  const day = new Date().getUTCDay();
+  const day = new Date().getDay();
   return day === 0 || day === 6;
 }
 
@@ -339,9 +339,9 @@ function scheduleBriefings() {
 
   setInterval(() => {
     const now = new Date();
-    const h = now.getUTCHours();
-    const m = now.getUTCMinutes();
-    const s = now.getUTCSeconds();
+    const h = now.getHours();
+    const m = now.getMinutes();
+    const s = now.getSeconds();
     if (s !== 0) return; // Sadece saat başlarında kontrol
     for (const slot of schedule) {
       if (h === slot.hour && m === slot.min) {
