@@ -450,6 +450,44 @@ function formatPortfolioMessage(result) {
   return msg;
 }
 
+
+// PRICE ENDPOINT
+const PRICE_SYSTEM = `Türkiye odaklı finansal analistisin. Web'den güncel fiyatları araştır.
+Şu varlıkların BUGÜNKÜ fiyat değişim yüzdelerini bul (son 24 saat):
+Altın, Gümüş, USD/TRY, EUR/TRY, BIST100, Bitcoin, Ethereum, Brent Petrol, S&P 500, Nasdaq, DXY, ABD Tahvil, Para Piyasası Fonu, TL Mevduat, Fon
+
+SADECE JSON döndür, başka hiçbir şey yazma:
+{
+  "updated_at": "HH:MM",
+  "prices": [
+    { "asset": "Altın", "change_pct": 2.5, "direction": "UP" },
+    { "asset": "Bitcoin", "change_pct": -1.2, "direction": "DOWN" }
+  ]
+}
+Bulamadığın varlık için change_pct: 0 ver.
+Para Piyasası Fonu ve TL Mevduat için günlük faiz getirisini yüzde olarak ver (örn: 0.11 = günlük %0.11).
+HABER GÜNCELLİĞİ: Sadece son 24 saatin fiyat verilerini kullan.`;
+
+let priceCache = null;
+let priceCacheTime = 0;
+const PRICE_CACHE_MS = 30 * 60 * 1000; // 30 dakika
+
+async function getPrices() {
+  const now = Date.now();
+  if (priceCache && (now - priceCacheTime) < PRICE_CACHE_MS) {
+    console.log('Price cache hit');
+    return priceCache;
+  }
+  const raw = await callClaude(PRICE_SYSTEM, 'Güncel fiyat değişimlerini getir.', true);
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('Fiyat JSON bulunamadı');
+  const result = JSON.parse(match[0]);
+  priceCache = result;
+  priceCacheTime = now;
+  console.log('Fiyatlar güncellendi:', result.updated_at);
+  return result;
+}
+
 // ─── WEBHOOK SERVER ───────────────────────────────────────────────
 
 const server = http.createServer((req, res) => {
@@ -458,6 +496,20 @@ const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+
+  // Prices API
+  if (req.method === 'GET' && req.url === '/prices') {
+    getPrices()
+      .then(result => {
+        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({ok: true, ...result}));
+      })
+      .catch(err => {
+        res.writeHead(500, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({ok: false, error: err.message}));
+      });
+    return;
+  }
 
   // Portfolio API
   if (req.method === 'GET' && req.url === '/portfolio') {
