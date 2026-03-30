@@ -33,6 +33,11 @@ Her başlık altında mevcut seviyeler, yön ve kısa yorum olsun.
 Türkiye yatırımcısı perspektifinden yaz.
 Korelasyon kalıplarını nedensellik olarak sunma.
 Cite tag, kaynak tag veya HTML kullanma.
+HABER GÜNCELLİĞİ KURALI:
+- Sadece son 48 saatin haberlerini "güncel" olarak kabul et
+- 48 saatten eski haberler varsa "ESKİ BAĞLAM (tarih):" olarak işaretle
+- "Bugün", "şu an", "güncel" ifadelerini sadece son 48 saat için kullan
+- Web aramasında tarihi her zaman kontrol et, eski haberi yeni gibi sunma
 
 FORMAT (tam olarak bu başlıkları kullan):
 💱 KUR & PARA POLİTİKASI
@@ -69,6 +74,11 @@ Kurallar:
 - Varsayım yapıyorsan "Varsayım:" yaz
 - Cite tag, kaynak tag veya HTML kullanma
 - Spekülatif fiyat tahmini yapma
+HABER GÜNCELLİĞİ KURALI:
+- Sadece son 48 saatin haberlerini "güncel" olarak kabul et
+- 48 saatten eski haberler varsa "ESKİ BAĞLAM (tarih):" olarak işaretle
+- "Bugün", "şu an", "güncel" ifadelerini sadece son 48 saat için kullan
+- Web aramasında tarihi her zaman kontrol et, eski haberi yeni gibi sunma
 
 Web aramasından SONRA SADECE JSON döndür, direkt { ile başla:
 {
@@ -323,7 +333,12 @@ PAZARTESİ AÇILIŞINA HAZIRLIK
 [Pazartesi açılışında dikkat edilmesi gereken veri, risk veya karar]
 
 Cite tag, kaynak tag veya HTML kullanma.
-Sonuna ekle: Bilgi amaçlıdır, yatırım tavsiyesi değildir.`;
+Sonuna ekle: Bilgi amaçlıdır, yatırım tavsiyesi değildir.
+HABER GÜNCELLİĞİ KURALI:
+- Sadece son 48 saatin haberlerini "güncel" olarak kabul et
+- 48 saatten eski haberler varsa "ESKİ BAĞLAM (tarih):" olarak işaretle
+- "Bugün", "şu an", "güncel" ifadelerini sadece son 48 saat için kullan
+- Web aramasında tarihi her zaman kontrol et, eski haberi yeni gibi sunma`;
 
 function isWeekend() {
   const day = new Date().getDay();
@@ -381,7 +396,12 @@ SADECE JSON döndür:
     { "asset": "Altın", "allocation_pct": 35, "reason": "Neden bu yüzde, mekanizma (1 cümle)" }
   ]
 }
-Toplam allocation_pct tam 100 olmalı. Sadece pozisyon aldığın varlıkları yaz, 0% olanları atlayabilirsin.`;
+Toplam allocation_pct tam 100 olmalı. Sadece pozisyon aldığın varlıkları yaz, 0% olanları atlayabilirsin.
+HABER GÜNCELLİĞİ KURALI:
+- Sadece son 48 saatin haberlerini "güncel" olarak kabul et
+- 48 saatten eski haberler varsa "ESKİ BAĞLAM (tarih):" olarak işaretle
+- "Bugün", "şu an", "güncel" ifadelerini sadece son 48 saat için kullan
+- Web aramasında tarihi her zaman kontrol et, eski haberi yeni gibi sunma`;
 
 let portfolioCache = null;
 let portfolioCacheTime = 0;
