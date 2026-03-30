@@ -5,7 +5,8 @@ const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CHAT_ID = process.env.CHAT_ID || "1551586121";
 const CHAT_ID_2 = process.env.CHAT_ID_2 || "8587386856";
-const ALL_CHATS = [CHAT_ID, CHAT_ID_2];
+const CHAT_ID_3 = process.env.CHAT_ID_3 || "1197856801";
+const ALL_CHATS = [CHAT_ID, CHAT_ID_2, CHAT_ID_3];
 
 // ─── CACHE ────────────────────────────────────────────────────────
 const briefingCache = {};
