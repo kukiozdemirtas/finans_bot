@@ -39,27 +39,9 @@ HABER GÜNCELLİĞİ KURALI:
 - "Bugün", "şu an", "güncel" ifadelerini sadece son 48 saat için kullan
 - Web aramasında tarihi her zaman kontrol et, eski haberi yeni gibi sunma
 
-Brifing metninin SONUNA ayrıca şu JSON bloğunu ekle (dashboard için):
-<PRICES>
-{
-  "updated_at": "HH:MM",
-  "prices": [
-    { "asset": "Altın", "change_pct": 2.5 },
-    { "asset": "Gümüş", "change_pct": 1.2 },
-    { "asset": "USD/TRY", "change_pct": 0.3 },
-    { "asset": "EUR/TRY", "change_pct": 0.2 },
-    { "asset": "BIST100", "change_pct": -0.5 },
-    { "asset": "Bitcoin", "change_pct": -1.2 },
-    { "asset": "Ethereum", "change_pct": -0.8 },
-    { "asset": "Brent Petrol", "change_pct": 3.1 },
-    { "asset": "S&P 500", "change_pct": -1.7 },
-    { "asset": "Nasdaq", "change_pct": -2.1 },
-    { "asset": "Para Piyasası Fonu", "change_pct": 0.11 },
-    { "asset": "TL Mevduat", "change_pct": 0.12 }
-  ]
-}
-</PRICES>
-Bulamadığın varlık için change_pct: 0 ver. JSON bloğu Telegram mesajına görünmeyecek, sadece sistem kullanacak.
+Brifing metnini yazdıktan sonra EN SONA bu satırı ekle (başka hiçbir şey ekleme):
+PRICES_JSON:{"updated_at":"HH:MM","prices":[{"asset":"Altın","change_pct":0},{"asset":"Gümüş","change_pct":0},{"asset":"USD/TRY","change_pct":0},{"asset":"EUR/TRY","change_pct":0},{"asset":"BIST100","change_pct":0},{"asset":"Bitcoin","change_pct":0},{"asset":"Ethereum","change_pct":0},{"asset":"Brent Petrol","change_pct":0},{"asset":"S&P 500","change_pct":0},{"asset":"Nasdaq","change_pct":0},{"asset":"Para Piyasası Fonu","change_pct":0.11},{"asset":"TL Mevduat","change_pct":0.12}]}
+0 olan değerleri web'den bulduğun gerçek değerlerle değiştir. HH:MM yerine şu anki saati yaz.
 
 FORMAT (tam olarak bu başlıkları kullan):
 💱 KUR & PARA POLİTİKASI
