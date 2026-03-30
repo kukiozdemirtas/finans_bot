@@ -39,6 +39,28 @@ HABER GÜNCELLİĞİ KURALI:
 - "Bugün", "şu an", "güncel" ifadelerini sadece son 48 saat için kullan
 - Web aramasında tarihi her zaman kontrol et, eski haberi yeni gibi sunma
 
+Brifing metninin SONUNA ayrıca şu JSON bloğunu ekle (dashboard için):
+<PRICES>
+{
+  "updated_at": "HH:MM",
+  "prices": [
+    { "asset": "Altın", "change_pct": 2.5 },
+    { "asset": "Gümüş", "change_pct": 1.2 },
+    { "asset": "USD/TRY", "change_pct": 0.3 },
+    { "asset": "EUR/TRY", "change_pct": 0.2 },
+    { "asset": "BIST100", "change_pct": -0.5 },
+    { "asset": "Bitcoin", "change_pct": -1.2 },
+    { "asset": "Ethereum", "change_pct": -0.8 },
+    { "asset": "Brent Petrol", "change_pct": 3.1 },
+    { "asset": "S&P 500", "change_pct": -1.7 },
+    { "asset": "Nasdaq", "change_pct": -2.1 },
+    { "asset": "Para Piyasası Fonu", "change_pct": 0.11 },
+    { "asset": "TL Mevduat", "change_pct": 0.12 }
+  ]
+}
+</PRICES>
+Bulamadığın varlık için change_pct: 0 ver. JSON bloğu Telegram mesajına görünmeyecek, sadece sistem kullanacak.
+
 FORMAT (tam olarak bu başlıkları kullan):
 💱 KUR & PARA POLİTİKASI
 [USD/TRY, EUR/TRY seviyeleri, TCMB durumu, kısa yorum]
@@ -452,40 +474,19 @@ function formatPortfolioMessage(result) {
 
 
 // PRICE ENDPOINT
-const PRICE_SYSTEM = `Türkiye odaklı finansal analistisin. Web'den güncel fiyatları araştır.
-Şu varlıkların BUGÜNKÜ fiyat değişim yüzdelerini bul (son 24 saat):
-Altın, Gümüş, USD/TRY, EUR/TRY, BIST100, Bitcoin, Ethereum, Brent Petrol, S&P 500, Nasdaq, DXY, ABD Tahvil, Para Piyasası Fonu, TL Mevduat, Fon
 
-SADECE JSON döndür, başka hiçbir şey yazma:
-{
-  "updated_at": "HH:MM",
-  "prices": [
-    { "asset": "Altın", "change_pct": 2.5, "direction": "UP" },
-    { "asset": "Bitcoin", "change_pct": -1.2, "direction": "DOWN" }
-  ]
+
+// Price store — populated by morning briefing, read by dashboard
+let priceStore = null;
+
+function setPrices(prices) {
+  priceStore = prices;
+  console.log('Fiyat store güncellendi:', new Date().toLocaleTimeString('tr-TR'));
 }
-Bulamadığın varlık için change_pct: 0 ver.
-Para Piyasası Fonu ve TL Mevduat için günlük faiz getirisini yüzde olarak ver (örn: 0.11 = günlük %0.11).
-HABER GÜNCELLİĞİ: Sadece son 24 saatin fiyat verilerini kullan.`;
-
-let priceCache = null;
-let priceCacheTime = 0;
-const PRICE_CACHE_MS = 30 * 60 * 1000; // 30 dakika
 
 async function getPrices() {
-  const now = Date.now();
-  if (priceCache && (now - priceCacheTime) < PRICE_CACHE_MS) {
-    console.log('Price cache hit');
-    return priceCache;
-  }
-  const raw = await callClaude(PRICE_SYSTEM, 'Güncel fiyat değişimlerini getir.', true);
-  const match = raw.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error('Fiyat JSON bulunamadı');
-  const result = JSON.parse(match[0]);
-  priceCache = result;
-  priceCacheTime = now;
-  console.log('Fiyatlar güncellendi:', result.updated_at);
-  return result;
+  if (priceStore) return priceStore;
+  throw new Error('Henüz fiyat verisi yok. Sabah brifingini bekleyin veya /kuki yazın.');
 }
 
 // ─── WEBHOOK SERVER ───────────────────────────────────────────────
