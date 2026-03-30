@@ -165,15 +165,43 @@ const BRIEFING_CONTEXTS = {
 async function sendBriefing(type) {
   const context = BRIEFING_CONTEXTS[type];
   const label = { morning:"☀️ SABAH", opening:"⚡ AÇILIŞ", wallst:"🌆 WALL STREET", closing:"🌙 KAPANIŞ" }[type];
-  console.log(`${label} brifing gönderiliyor...`);
+
+  // Cache kontrolü — aynı gün aynı tür varsa cache'ten gönder
+  const cached = getFromCache(type);
+  if (cached) {
+    console.log('Cache hit:', type);
+    for (const cid of ALL_CHATS) await sendLongMessage(cid, cached + '\n\n📦 Cache\'ten geldi.');
+    return;
+  }
+
+  console.log(label + ' brifing hazırlanıyor...');
   try {
-    for (const cid of ALL_CHATS) await sendMessage(cid, `${label} BRİFİNG hazırlanıyor... 🔍`);
+    for (const cid of ALL_CHATS) await sendMessage(cid, label + ' BRİFİNG hazırlanıyor... 🔍');
     const text = await callClaude(BRIEFING_SYSTEM, context, true);
-    for (const cid of ALL_CHATS) await sendLongMessage(cid, `${label} BRİFİNG\n${new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}\n\n${text}`);
-    console.log(`${label} brifing gönderildi.`);
+    const timeStr = new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
+
+    // Fiyat verisini çıkar ve kaydet
+    const priceMatch = text.match(/PRICES_JSON:(\{[\s\S]*?\})/);
+    if (priceMatch) {
+      try {
+        const priceData = JSON.parse(priceMatch[1].trim());
+        setPrices(priceData);
+        console.log('Fiyat store güncellendi:', priceData.updated_at);
+      } catch(e) { console.error('Fiyat parse hatası:', e.message); }
+    } else {
+      console.log('PRICES_JSON bloğu bulunamadı.');
+    }
+
+    // PRICES_JSON satırını mesajdan kaldır
+    const cleanText = text.replace(/PRICES_JSON:\{[\s\S]*?\}/g, '').trim();
+    const fullMsg = label + ' BRİFİNG ' + timeStr + '\n\n' + cleanText;
+
+    saveToCache(type, fullMsg);
+    for (const cid of ALL_CHATS) await sendLongMessage(cid, fullMsg);
+    console.log(label + ' brifing gönderildi.');
   } catch (err) {
-    console.error(`${label} brifing hatası:`, err.message);
-    await sendMessage(CHAT_ID, `${label} brifing hazırlanamadı: ${err.message}`);
+    console.error(label + ' brifing hatası:', err.message);
+    await sendMessage(CHAT_ID, label + ' brifing hazırlanamadı: ' + err.message);
   }
 }
 
